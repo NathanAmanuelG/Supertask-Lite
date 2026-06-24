@@ -12,4 +12,6 @@ export const colors = {
   chipBackground: "#eee",
   success: "#4CAF50",
   danger: "#d9534f",
+  primary: "#4F46E5",
+  primaryPressed: "#4338CA",
 };

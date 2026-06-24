@@ -1,32 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, useContext, useEffect, useState } from "react";
+import {
+  cancelTaskReminder,
+  scheduleTaskReminder,
+} from "../utils/notifications";
 
 const TaskContext = createContext();
 const STORAGE_KEY = "tasks";
 
-const defaultTasks = [
-  {
-    id: "1",
-    title: "Buy groceries",
-    description: "Milk, eggs, bread",
-    status: false,
-    createdDate: "2026-06-20",
-  },
-  {
-    id: "2",
-    title: "Finish report",
-    description: "Q2 summary for work",
-    status: true,
-    createdDate: "2026-06-19",
-  },
-  {
-    id: "3",
-    title: "Call dentist",
-    description: "Reschedule appointment",
-    status: false,
-    createdDate: "2026-06-21",
-  },
-];
+const defaultTasks = [];
 
 export function TaskProvider({ children }) {
   const [tasks, setTasks] = useState([]);
@@ -52,24 +34,74 @@ export function TaskProvider({ children }) {
     }
   }, [tasks, loaded]);
 
-  function addTask(title, description) {
+  function findTask(id) {
+    return tasks.find((t) => t.id === id);
+  }
+
+  async function addTask(title, description, dueDate) {
+    let notificationId = null;
+    if (dueDate) {
+      notificationId = await scheduleTaskReminder(title, dueDate);
+    }
     const newTask = {
       id: Date.now().toString(),
       title,
       description,
       status: false,
       createdDate: new Date().toISOString().split("T")[0],
+      dueDate: dueDate ? dueDate.toISOString() : null,
+      notificationId,
     };
     setTasks((prev) => [newTask, ...prev]);
   }
 
-  function toggleTask(id) {
+  async function updateTask(id, title, description, dueDate) {
+    const existing = findTask(id);
+    if (existing?.notificationId) {
+      await cancelTaskReminder(existing.notificationId);
+    }
+    let notificationId = null;
+    if (dueDate) {
+      notificationId = await scheduleTaskReminder(title, dueDate);
+    }
     setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, status: !t.status } : t)),
+      prev.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              title,
+              description,
+              dueDate: dueDate ? dueDate.toISOString() : null,
+              notificationId,
+            }
+          : t,
+      ),
     );
   }
 
-  function deleteTask(id) {
+  async function toggleTask(id) {
+    const existing = findTask(id);
+    if (existing && !existing.status && existing.notificationId) {
+      await cancelTaskReminder(existing.notificationId);
+    }
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== id) return t;
+        const willBeCompleted = !t.status;
+        return {
+          ...t,
+          status: willBeCompleted,
+          notificationId: willBeCompleted ? null : t.notificationId,
+        };
+      }),
+    );
+  }
+
+  async function deleteTask(id) {
+    const existing = findTask(id);
+    if (existing?.notificationId) {
+      await cancelTaskReminder(existing.notificationId);
+    }
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }
 
@@ -78,16 +110,26 @@ export function TaskProvider({ children }) {
     const newTasks = items.map((item, index) => ({
       id: `${Date.now()}-${index}`,
       title: item.title,
-      description: "Imported from public API",
-      status: item.status,
+      description: item.description || "",
+      status: false,
       createdDate: today,
+      dueDate: null,
+      notificationId: null,
     }));
     setTasks((prev) => [...newTasks, ...prev]);
   }
 
   return (
     <TaskContext.Provider
-      value={{ tasks, addTask, toggleTask, deleteTask, importTasks, loaded }}
+      value={{
+        tasks,
+        addTask,
+        updateTask,
+        toggleTask,
+        deleteTask,
+        importTasks,
+        loaded,
+      }}
     >
       {children}
     </TaskContext.Provider>

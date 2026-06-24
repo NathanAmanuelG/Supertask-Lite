@@ -1,8 +1,8 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Button,
   FlatList,
   StyleSheet,
   Text,
@@ -10,11 +10,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import EmptyState from "../components/EmptyState";
+import PrimaryButton from "../components/PrimaryButton";
 import TaskItem from "../components/TaskItem";
 import { colors } from "../constants/colors";
 import { useTasks } from "../context/TaskContext";
-import { fetchSampleTasks } from "../utils/api";
+import { fetchTaskIdeas } from "../utils/api";
 
 const FILTERS = [
   { key: "all", label: "All" },
@@ -28,16 +30,15 @@ export default function TaskListScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  async function handleImport() {
+  async function handleGetIdeas() {
+    const needed = 5 - tasks.length;
+    if (needed <= 0) return;
     setLoading(true);
     try {
-      const sampleTasks = await fetchSampleTasks();
-      importTasks(sampleTasks);
+      const ideas = await fetchTaskIdeas(needed);
+      importTasks(ideas);
     } catch (error) {
-      Alert.alert(
-        "Error",
-        "Could not load sample tasks. Check your connection.",
-      );
+      Alert.alert("Error", "Could not load task ideas. Check your connection.");
     } finally {
       setLoading(false);
     }
@@ -51,22 +52,33 @@ export default function TaskListScreen({ navigation }) {
       return true;
     });
 
+  const showIdeasButton = tasks.length < 5;
+
   if (!loaded) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator />
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search by title"
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-      />
+    <SafeAreaView style={styles.container} edges={["bottom"]}>
+      <View style={styles.searchRow}>
+        <Ionicons
+          name="search"
+          size={18}
+          color={colors.textMuted}
+          style={styles.searchIcon}
+        />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by title"
+          placeholderTextColor={colors.textMuted}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </View>
 
       <View style={styles.filterRow}>
         {FILTERS.map((f) => (
@@ -114,33 +126,46 @@ export default function TaskListScreen({ navigation }) {
       />
 
       <View style={styles.buttonWrap}>
-        {loading ? (
-          <ActivityIndicator />
-        ) : (
-          <Button title="Import Sample Tasks" onPress={handleImport} />
+        {showIdeasButton && (
+          <>
+            {loading ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <PrimaryButton
+                title="Get Task Ideas"
+                variant="secondary"
+                onPress={handleGetIdeas}
+              />
+            )}
+            <View style={{ height: 8 }} />
+          </>
         )}
-        <View style={{ height: 8 }} />
-        <Button
+        <PrimaryButton
           title="Add Task"
           onPress={() => navigation.navigate("AddTask")}
+          icon={<Ionicons name="add" size={20} color={colors.white} />}
         />
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: colors.background },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  searchInput: {
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
     margin: 16,
     marginBottom: 8,
     borderWidth: 1,
     borderColor: colors.borderInput,
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 16,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    backgroundColor: colors.white,
   },
+  searchIcon: { marginRight: 6 },
+  searchInput: { flex: 1, paddingVertical: 10, fontSize: 16 },
   filterRow: {
     flexDirection: "row",
     paddingHorizontal: 16,
@@ -153,7 +178,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.chipBackground,
     marginRight: 8,
   },
-  filterChipActive: { backgroundColor: colors.success },
+  filterChipActive: { backgroundColor: colors.primary },
   filterText: { color: colors.textSecondary, fontSize: 13 },
   filterTextActive: { color: colors.white, fontWeight: "600" },
   buttonWrap: { padding: 16 },
